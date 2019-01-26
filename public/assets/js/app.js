@@ -3,16 +3,49 @@ $.getJSON("/articles", function(data) {
   // For each one
   for (var i = 0; i < data.length; i++) {
     // Display the apropos information on the page
+
     $("#articles").append(
-      "<p data-id='" +
-        data[i]._id +
-        "'>" +
-        data[i].title +
-        "<br />" +
-        data[i].link +
-        "</p>"
+      `<div class="card bg-dark text-white" data-id="${data[i]._id}">
+      <img class="card-img-top" src="${data[i].image}" alt="Card image">
+      <div class="card-body">
+      <h5 class="card-title">${data[i].title}</h5>
+      <p class="card-text"><a href="${data[i].link}">
+      Check out the Story Here
+      </a>
+      <svg class="bookmark" width="24" height="24" xmlns="http://www.w3.org/2000/svg" fill-rule="evenodd" clip-rule="evenodd"><path d="M5 0v24l7-6 7 6v-24h-14zm1 1h12v20.827l-6-5.144-6 5.144v-20.827z"/></svg>
+      </p> 
+      </div>`
     );
   }
+});
+
+//if scrape is clicked
+$("#scrape").on("click", function() {
+  var prevLength = 0;
+  var finalLength = 0;
+  //get the original number of articles
+  $.ajax({
+    method: "GET",
+    url: "/articles",
+    success: function(data) {
+      prevLength = data.length;
+    }
+  }).then(function() {
+    //then scrape the new articles, calculate the difference in number of articles and display, then reload the index page
+    $.ajax({
+      method: "GET",
+      url: "/scrape",
+      success: function(data) {
+        finalLength = data.countNum;
+        var diff = finalLength - prevLength;
+        $("#modalBody").text(diff + " articles were added.");
+        $("#myModal").modal("show");
+        setTimeout(function() {
+          window.location.href = "/";
+        }, 3000);
+      }
+    });
+  });
 });
 
 // Whenever someone clicks a p tag

@@ -5,6 +5,9 @@ const cheerio = require("cheerio"); //Scraper
 const exphbs = require("express-handlebars"); //Handlebars
 const axios = require("axios"); //Axios is a scrapping tool
 const logger = require("morgan");
+const P = require("bluebird");
+const _ = require("lodash");
+
 // Require all models
 const db = require("./models");
 
@@ -45,56 +48,62 @@ app.get("/saved", function(req, res) {
 });
 
 app.get("/scrape", function(req, res) {
-  let count = 0;
   // First, we grab the body of the html with axios
+
   axios
     .get("https://www.wired.com/")
     .then(function(response) {
       // Then, we load that into cheerio and save it to $ for a shorthand selector
       const $ = cheerio.load(response.data);
+      $("footer").remove();
+
       // Now, we grab every article:
-      $("li.card-component__description").each(function(i, element) {
-        // Save an empty result object
-        let result = {};
+      let articles = $("div.homepage-main h5")
+        .map((i, h5) => {
+          // Save an empty result object
+          let result = {};
+          result.title = $(h5).text();
+          result.link = `http://www.wired.com${$(h5)
+            .closest("a")
+            .attr("href")}`;
+          result.byline = $(h5)
+            .siblings(".byline-component")
+            .find(".visually-hidden")
+            .first()
+            .text();
+          result.image = $(h5)
+            .parent()
+            .parent()
+            .find("img")
+            .attr("src");
+          return result;
+        })
+        .splice(0)
+        .filter(a => !!a.image);
 
-        result.title = $(this)
-          .children("h2")
-          .first()
-          .text();
-        result.link = $(this)
-          .children("h2")
-          .first()
-          .children("a")
-          .first()
-          .attr("href");
-        result.summary = $(this)
-          .children("p")
-          .first()
-          .text();
+      articles = _.uniq(_.uniq(articles, a => a.title), a => a.link);
 
-        //create an article with the info
-        db.Article.create(result)
-          .then(function(dbArticle) {
-            // View the added result in the console
-            console.log(dbArticle);
-          })
-          .catch(function(err) {
-            // If an error occurred, log it
-            console.log(err);
-          });
-        count++;
+      return P.each(articles, a => {
+        return db.Article.findOneAndUpdate({ link: a.link }, a, {
+          upsert: true,
+          new: true,
+          runValidators: true
+        });
       });
     })
-    .then(function() {
-      // Send a message to the client
-      res.send({ countNum: count });
+    .then(result => {
+      console.log(result);
+      res.send({ countNum: result.length });
+    })
+    .catch(err => {
+      console.error(err);
+      res.send(err);
     });
 });
 
 // Route for getting all Articles from the db
 app.get("/articles", function(req, res) {
-  db.Article.find({})
-    .sort({ _id: -1 })
+  db.Article.find()
     .then(function(dbArticle) {
       res.json(dbArticle);
     })
@@ -192,6 +201,7 @@ app.delete("/note/:id", function(req, res) {
     res.json(err);
   });
 });
+
 // Start the server
 app.listen(PORT, function() {
   console.log(
