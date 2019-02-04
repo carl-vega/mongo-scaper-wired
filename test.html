@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+  <head> </head>
+  <body>
+    <div class="card bg-dark text-white">
+      <img class="card-img-top" src="${data[i].image}" alt="Card image" />
+      <div class="card-body">
+        <h5 class="card-title">${data[i].title}</h5>
+        <p class="card-text">
+            <a href="${data[i].link}"> Check out the Story Here </a>
+            <div class="btn-wrapper">
+            <div class="zoom">
+                <a class="zoom-fab zoom-btn-large" id="zoomBtn"
+                ><i class="material-icons">menu</i></a
+                >
+                <ul class="zoom-menu">
+                <li>
+                    <a
+                    class="zoom-fab zoom-btn-sm zoom-btn-person scale-transition scale-out"
+                    ><i class="material-icons">note_add</i></a
+                    >
+                </li>
+                <li>
+                    <a
+                    class="zoom-fab zoom-btn-sm zoom-btn-doc scale-transition scale-out"
+                    ><i class="material-icons">sentiment_very_dissatisfied</i></a
+                    >
+                </li>
+                </ul>
+                <div class="zoom-card scale-transition scale-out">
+                <ul class="zoom-card-content">
+                    <li>Content 1</li>
+                    <li>Content 2</li>
+                </ul>
+                </div>
+            </div>
+            </div>
+        </p>
+      </div>
+    </div>
+  </body>
+</html>

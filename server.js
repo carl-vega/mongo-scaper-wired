@@ -26,13 +26,11 @@ app.use(express.json());
 // Make public a static folder
 app.use(express.static("public"));
 // Connect to the Mongo DB
+let MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost/home";
 mongoose.connect(
-  process.env.MONGODB_URI || "mongodb://localhost/home",
-  { useNewUrlParser: true }
+  MONGODB_URI,
+  { useNewUrlParser: true, useCreateIndex: true }
 );
-// // Connect to the Mongo DB
-// mongoose.Promise = Promise;
-// mongoose.connect(MONGODB_URI);
 
 // Handlebars
 app.engine("handlebars", exphbs({ defaultLayout: "main" }));
@@ -47,7 +45,7 @@ app.get("/saved", function(req, res) {
   res.render("saved");
 });
 
-app.get("/scrape", function(req, res) {
+app.get("/api/scrape", function(req, res) {
   // First, we grab the body of the html with axios
 
   axios
@@ -56,7 +54,7 @@ app.get("/scrape", function(req, res) {
       // Then, we load that into cheerio and save it to $ for a shorthand selector
       const $ = cheerio.load(response.data);
       $("footer").remove();
-
+      db.Article.create();
       // Now, we grab every article:
       let articles = $("div.homepage-main h5")
         .map((i, h5) => {
@@ -87,6 +85,7 @@ app.get("/scrape", function(req, res) {
         return db.Article.findOneAndUpdate({ link: a.link }, a, {
           upsert: true,
           new: true,
+          setDefaultsOnInsert: true,
           runValidators: true
         });
       });
@@ -102,7 +101,7 @@ app.get("/scrape", function(req, res) {
 });
 
 // Route for getting all Articles from the db
-app.get("/articles", function(req, res) {
+app.get("/api/articles", function(req, res) {
   db.Article.find()
     .then(function(dbArticle) {
       res.json(dbArticle);
@@ -112,7 +111,7 @@ app.get("/articles", function(req, res) {
     });
 });
 
-app.get("/saved", function(req, res) {
+app.get("/api/saved", function(req, res) {
   db.Article.find({ saved: true })
     .sort({ _id: -1 })
     .then(function(dbArticle) {
@@ -125,7 +124,7 @@ app.get("/saved", function(req, res) {
 });
 
 // Route for grabbing a specific Article by id, populate it with it's note
-app.get("/articles/:id", function(req, res) {
+app.get("/api/articles/:id", function(req, res) {
   // Using the id passed in the id parameter, prepare a query that finds the matching one in our db...
   db.Article.findOne({ _id: req.params.id })
     // ..and populate all of the notes associated with it
@@ -140,7 +139,7 @@ app.get("/articles/:id", function(req, res) {
 });
 
 // Route for saving/updating an Article's associated Note
-app.post("/articles/:id", function(req, res) {
+app.post("/api/articles/:id", function(req, res) {
   // Create a new note and pass the req.body to the entry
   db.Note.create(req.body)
     .then(function(dbNote) {
@@ -163,9 +162,9 @@ app.post("/articles/:id", function(req, res) {
     });
 });
 
-app.post("/save/:id", function(req, res) {
+app.post("/api/save/:id", function(req, res) {
   // Updates the saved value to true for one article using the req.params.id
-  db.Article.updateOne({ _id: req.params.id }, { saved: true }, function(
+  db.Article.findOneAndUpdate({ _id: req.params.id }, { saved: true }, function(
     dbArticle
   ) {
     res.json(dbArticle);
@@ -174,27 +173,35 @@ app.post("/save/:id", function(req, res) {
   });
 });
 
-// Route for saving/updating an Article's associated Note
-app.post("/note/:id", function(req, res) {
-  db.Note.create(req.body)
-    .then(function(dbNote) {
-      return db.Article.findOneAndUpdate(
-        { _id: req.params.id },
-        { $push: { note: dbNote._id } },
-        { new: true }
-      );
-    })
+app.post("/api/deletesave/:id", function(req, res) {
+  // Updates the saved value to false for one article using the req.params.id
+  db.Article.findOneAndUpdate(
+    { _id: req.params.id },
+    { saved: false },
+    function(dbArticle) {
+      res.json(dbArticle);
+    }
+  ).catch(function(err) {
+    res.json(err);
+  });
+});
+
+app.put("/api/articles/:id/:deleteId", function(req, res) {
+  //finds an article using req.params.id and deletes the note id given as req.params.deleteId from the note array
+  db.Article.findOneAndUpdate(
+    { _id: req.params.id },
+    { $pullAll: { note: [req.params.deleteId] } }
+  )
+    .populate("note")
     .then(function(dbArticle) {
-      // If we were able to successfully update an Article, send it back to the client
       res.json(dbArticle);
     })
     .catch(function(err) {
-      // If an error occurred, send it to the client
       res.json(err);
     });
 });
 
-app.delete("/note/:id", function(req, res) {
+app.delete("/api/note/:id", function(req, res) {
   db.Note.deleteOne({ _id: req.params.id }, function(dbNote) {
     res.json(dbNote);
   }).catch(function(err) {
